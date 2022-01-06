@@ -250,11 +250,130 @@ juce::String RotarySliderWithLabels::getDisplayString() const
     return str;
 }
 
+void RotarySliderWithLabels::changeParam(juce::RangedAudioParameter* p)
+{
+    param = p;
+    repaint();
+}
+
+//==============================================================================
+juce::String RatioSlider::getDisplayString() const
+{
+    auto choiceParam = dynamic_cast<juce::AudioParameterChoice*>(param);
+    jassert(choiceParam != nullptr);
+
+    auto currentChoice = choiceParam->getCurrentChoiceName();
+
+    if (currentChoice.contains(".0"))
+    {
+        currentChoice = currentChoice.substring(0, currentChoice.indexOf("."));
+    }
+
+    currentChoice << ":1";
+
+    return currentChoice;
+}
+
+//==============================================================================
+void drawModuleBackground(juce::Graphics& g, juce::Rectangle<int> bounds)
+{
+    using namespace juce;
+
+    g.setColour(Colours::blueviolet);
+    g.fillAll();
+
+    auto localBounds = bounds;
+
+    bounds.reduce(3, 3);
+    g.setColour(Colours::black);
+    g.fillRoundedRectangle(bounds.toFloat(), 3);
+
+    g.drawRect(localBounds);
+}
+
 //==============================================================================
 Placeholder::Placeholder()
 {
     juce::Random r;
     customColor = juce::Colour(r.nextInt(255), r.nextInt(255), r.nextInt(255));
+}
+
+//==============================================================================
+CompressorBandControls::CompressorBandControls(juce::AudioProcessorValueTreeState& apv) :
+apvts(apv),
+attackSlider(nullptr, "ms", "ATTACK"),
+releaseSlider(nullptr, "ms", "RELEASE"),
+thresholdSlider(nullptr, "dB", "THRESH"),
+ratioSlider(nullptr, "")
+{
+    using namespace Params;
+    const auto& params = GetParams();
+
+    auto getParamHelper = [&params, &apvts = this->apvts](const auto& name) -> auto&
+    {
+        return getParam(apvts, params, name);
+    };
+
+    auto makeAtachmentHelper = [&params, &apvts = this->apvts](auto& attachment, const auto& name, auto& slider)
+    {
+        makeAttachment(attachment, apvts, params, name, slider);
+    };
+
+    attackSlider.changeParam(&getParamHelper(Names::Attack_Mid_Band));
+    releaseSlider.changeParam(&getParamHelper(Names::Release_Mid_Band));
+    thresholdSlider.changeParam(&getParamHelper(Names::Threshold_Mid_Band));
+    ratioSlider.changeParam(&getParamHelper(Names::Ratio_Mid_Band));
+
+    addLabelPairs(attackSlider.labels, getParamHelper(Names::Attack_Mid_Band), "ms");
+    addLabelPairs(releaseSlider.labels, getParamHelper(Names::Release_Mid_Band), "ms");
+    addLabelPairs(thresholdSlider.labels, getParamHelper(Names::Threshold_Mid_Band), "dB");
+
+    ratioSlider.labels.add({ 0.f, "1:1" });
+    auto ratioParam = dynamic_cast<juce::AudioParameterChoice*>(&getParamHelper(Names::Ratio_Mid_Band));
+    ratioSlider.labels.add({ 1.f, 
+        juce::String(ratioParam->choices.getReference(ratioParam->choices.size() -1 ).getIntValue()) + ":1"});
+
+    makeAtachmentHelper(attackSliderAttachment, Names::Attack_Mid_Band, attackSlider);
+    makeAtachmentHelper(releaseSliderAttachment, Names::Release_Mid_Band, releaseSlider);
+    makeAtachmentHelper(thresholdSliderAttachment, Names::Threshold_Mid_Band, thresholdSlider);
+    makeAtachmentHelper(ratioSliderAttachment, Names::Ratio_Mid_Band, ratioSlider);
+
+    addAndMakeVisible(attackSlider);
+    addAndMakeVisible(releaseSlider);
+    addAndMakeVisible(thresholdSlider);
+    addAndMakeVisible(ratioSlider);
+}
+
+void CompressorBandControls::paint(juce::Graphics& g)
+{
+    auto bounds = getLocalBounds();
+    
+    drawModuleBackground(g, bounds);
+}
+
+void CompressorBandControls::resized()
+{
+    auto bounds = getLocalBounds().reduced(5);
+    using namespace juce;
+
+    FlexBox flexBox;
+    flexBox.flexDirection = FlexBox::Direction::row;
+    flexBox.flexWrap = FlexBox::Wrap::noWrap;
+
+    auto spacer = FlexItem().withWidth(4);
+    auto endCap = FlexItem().withWidth(6);
+
+    flexBox.items.add(endCap);
+    flexBox.items.add(FlexItem(attackSlider).withFlex(1.f));
+    flexBox.items.add(spacer);
+    flexBox.items.add(FlexItem(releaseSlider).withFlex(1.f));
+    flexBox.items.add(spacer);
+    flexBox.items.add(FlexItem(thresholdSlider).withFlex(1.f));
+    flexBox.items.add(spacer);
+    flexBox.items.add(FlexItem(ratioSlider).withFlex(1.f));
+    flexBox.items.add(endCap);
+
+    flexBox.performLayout(bounds);
 }
 
 //==============================================================================
@@ -274,10 +393,10 @@ GlobalControls::GlobalControls(juce::AudioProcessorValueTreeState& apvts)
     auto& midHighXoverParam = getParamHelper(Names::Mid_High_Crossover_Freq);
     auto& gainOutParam = getParamHelper(Names::Gain_Out);
 
-    inGainSlider = std::make_unique<RSWL>(gainInParam, "dB", "INPUT TRIM");
-    lowMidXoverSlider = std::make_unique<RSWL>(lowMidXoverParam, "Hz", "LOW MID X-OVER");
-    midHighXoverSlider = std::make_unique<RSWL>(midHighXoverParam, "Hz", "LOW MID X-OVER");
-    outGainSlider = std::make_unique<RSWL>(gainOutParam, "dB", "OUTPUT TRIM");
+    inGainSlider = std::make_unique<RSWL>(&gainInParam, "dB", "INPUT TRIM");
+    lowMidXoverSlider = std::make_unique<RSWL>(&lowMidXoverParam, "Hz", "LOW MID X-OVER");
+    midHighXoverSlider = std::make_unique<RSWL>(&midHighXoverParam, "Hz", "LOW MID X-OVER");
+    outGainSlider = std::make_unique<RSWL>(&gainOutParam, "dB", "OUTPUT TRIM");
 
     auto makeAtachmentHelper = [&params, &apvts](auto& attachment, const auto& name, auto& slider)
     {
@@ -302,18 +421,9 @@ GlobalControls::GlobalControls(juce::AudioProcessorValueTreeState& apvts)
 
 void GlobalControls::paint(juce::Graphics& g)
 {
-    using namespace juce;
     auto bounds = getLocalBounds();
-    g.setColour(Colours::blueviolet);
-    g.fillAll();
-
-    auto localBounds = bounds;
-
-    bounds.reduce(3, 3);
-    g.setColour(Colours::black);
-    g.fillRoundedRectangle(bounds.toFloat(), 3);
-
-    g.drawRect(localBounds);
+    
+    drawModuleBackground(g, bounds);
 }
 
 void GlobalControls::resized()
@@ -340,20 +450,24 @@ void GlobalControls::resized()
 
     flexBox.performLayout(bounds);
 }
+
 //==============================================================================
 SimpleMBCompAudioProcessorEditor::SimpleMBCompAudioProcessorEditor (SimpleMBCompAudioProcessor& p)
     : AudioProcessorEditor (&p), audioProcessor (p)
 {
+    setLookAndFeel(&lnf);
+
     // addAndMakeVisible(controlBar);
     // addAndMakeVisible(analyzer);
     addAndMakeVisible(globalControls);
-    //addAndMakeVisible(bandControls);
+    addAndMakeVisible(bandControls);
 
     setSize (600, 500);
 }
 
 SimpleMBCompAudioProcessorEditor::~SimpleMBCompAudioProcessorEditor()
 {
+    setLookAndFeel(nullptr);
 }
 
 //==============================================================================
