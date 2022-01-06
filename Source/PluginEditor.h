@@ -123,13 +123,31 @@ struct RotarySlider : juce::Slider
 //==============================================================================
 /**
 */
-template<typename Attachment, typename APVTS, typename Params, typename ParamName, typename sliderType
-        >
+template<typename Attachment, typename APVTS, typename Params, typename ParamName, typename sliderType>
 void makeAttachment(std::unique_ptr<Attachment>& attachment, APVTS& apvts, const Params& params, const ParamName& name, sliderType& slider)
 {
     attachment = std::make_unique<Attachment>(apvts,
                                               params.at(name),
                                               slider);
+}
+
+template<typename APVTS, typename Params, typename Name>
+juce::RangedAudioParameter& getParam(APVTS& apvts, Params& params, const Name& name)
+{
+    auto param = apvts.getParameter(params.at(name));
+    jassert(param != nullptr);
+
+    return *param;
+}
+
+juce::String getValString(juce::RangedAudioParameter& param, bool getLow, juce::String suffix);
+
+template<typename Labels, typename ParamType, typename SuffixType>
+void addLabelPairs(Labels& labels, const ParamType& param, const SuffixType& suffix)
+{
+    labels.clear();
+    labels.add({ 0.f, getValString(param, true, suffix)});
+    labels.add({ 1.f, getValString(param, false, suffix) });
 }
 
 //==============================================================================
@@ -144,7 +162,8 @@ struct GlobalControls : juce::Component
     void resized() override;
 
 private:
-    RotarySlider inGainSlider, lowMidXoverSlider, midHighXoverSlider, outGainSlider;
+    using RSWL = RotarySliderWithLabels;
+    std::unique_ptr<RSWL> inGainSlider, lowMidXoverSlider, midHighXoverSlider, outGainSlider;
 
     using Attachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     std::unique_ptr< Attachment> inGainSliderAttachment, lowMidXoverSliderAttachment, midHighXoverSliderAttachment, outGainSliderAttachment;
