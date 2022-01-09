@@ -11,6 +11,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include "../DSP/Fifo.h"
+#include "Utilities.h"
 
 template<typename PathType>
 struct AnalyzerPathGenerator
@@ -36,7 +37,7 @@ struct AnalyzerPathGenerator
         auto map = [bottom, top, negativeInfinity](float v)
         {
             return juce::jmap(v,
-                negativeInfinity, 0.f,
+                negativeInfinity, MAX_DECIBELS,
                 bottom, top);
         };
 
