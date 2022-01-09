@@ -63,7 +63,7 @@ std::vector<float> SpectrumAnalyzer::getXs(const std::vector<float>& freqs, floa
 
     for (auto f : freqs)
     {
-        auto normX = juce::mapFromLog10(f, 20.f, 20000.f);
+        auto normX = juce::mapFromLog10(f, MIN_FREQUENCY, MAX_FREQUENCY);
         xs.push_back(left + width * normX);
     }
 
