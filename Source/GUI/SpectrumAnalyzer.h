@@ -33,8 +33,9 @@ struct SpectrumAnalyzer : juce::Component,
     std::vector<float> getFrequencies();
     std::vector<float> getXs(const std::vector<float>& freqs, float left, float width);
 
-    void drawBackGroundGrid(juce::Graphics& g);
-    void drawTextLabels(juce::Graphics& g);
+    //void drawBackGroundGrid(juce::Graphics& g);
+    void drawBackGroundGrid(juce::Graphics& g, juce::Rectangle<int> bounds);
+    void drawTextLabels(juce::Graphics& g, juce::Rectangle<int> bounds);
 private:
     SimpleMBCompAudioProcessor& audioProcessor;
 
@@ -46,9 +47,9 @@ private:
 
     juce::Image background;
 
-    juce::Rectangle<int> getRenderArea();
+    juce::Rectangle<int> getRenderArea(juce::Rectangle<int> bounds);
 
-    juce::Rectangle<int> getAnalysisArea();
+    juce::Rectangle<int> getAnalysisArea(juce::Rectangle<int> bounds);
 
     PathProducer leftPathProducer, rightPathProducer;
 
