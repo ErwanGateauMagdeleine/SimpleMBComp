@@ -44,13 +44,13 @@ void SpectrumAnalyzer::paint(juce::Graphics& g)
     if (shouldShowFFTAnalysis)
     {
         auto leftChannelFFTPath = leftPathProducer.getPath();
-        leftChannelFFTPath.applyTransform(AffineTransform().translation(responseArea.getX(), responseArea.getY()));
+        leftChannelFFTPath.applyTransform(AffineTransform().translation(responseArea.getX(), 0));
 
         g.setColour(Colours::lightblue);
         g.strokePath(leftChannelFFTPath, PathStrokeType(1.f));
 
         auto rightChannelFFTPath = rightPathProducer.getPath();
-        rightChannelFFTPath.applyTransform(AffineTransform().translation(responseArea.getX(), responseArea.getY()));
+        rightChannelFFTPath.applyTransform(AffineTransform().translation(responseArea.getX(), 0));
 
         g.setColour(Colours::yellow);
         g.strokePath(rightChannelFFTPath, PathStrokeType(1.f));
@@ -174,6 +174,13 @@ void SpectrumAnalyzer::resized()
         r.setSize(textWidth, fontHeight);
         g.drawFittedText(str, r.toNearestInt(), Justification::centred, 1);
     }
+
+    auto fftBounds = getAnalysisArea().toFloat();
+    auto negInf = jmap(getLocalBounds().toFloat().getBottom(),
+                       fftBounds.getBottom(), fftBounds.getY(),
+                       -48.f, 0.f);
+    leftPathProducer.updateNegativeInfinity(negInf);
+    rightPathProducer.updateNegativeInfinity(negInf);
 }
 
 void SpectrumAnalyzer::parameterValueChanged(int parameterIndex, float newValue)
@@ -192,6 +199,7 @@ void SpectrumAnalyzer::timerCallback()
     if (shouldShowFFTAnalysis)
     {
         auto fftBounds = getAnalysisArea().toFloat();
+        fftBounds.setBottom(getLocalBounds().getBottom());
         auto sampleRate = audioProcessor.getSampleRate();
 
         leftPathProducer.process(fftBounds, sampleRate);
