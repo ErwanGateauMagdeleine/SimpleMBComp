@@ -28,6 +28,13 @@ struct SpectrumAnalyzer : juce::Component,
     void resized() override;
 
     void toggleAnalysisEnablement(bool enabled);
+
+    std::vector<float> getGains();
+    std::vector<float> getFrequencies();
+    std::vector<float> getXs(const std::vector<float>& freqs, float left, float width);
+
+    void drawBackGroundGrid(juce::Graphics& g);
+    void drawTextLabels(juce::Graphics& g);
 private:
     SimpleMBCompAudioProcessor& audioProcessor;
 

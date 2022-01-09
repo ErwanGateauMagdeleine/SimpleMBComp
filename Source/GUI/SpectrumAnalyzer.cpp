@@ -32,13 +32,158 @@ SpectrumAnalyzer::~SpectrumAnalyzer()
     }
 }
 
+std::vector<float> SpectrumAnalyzer::getGains()
+{
+    return std::vector<float>
+    {
+        -24, -12, 0, 12, 24
+    };
+}
+
+std::vector<float> SpectrumAnalyzer::getFrequencies()
+{
+    return std::vector<float>
+    {
+        20, /* 30, 40,*/ 50, 100,
+        200, /* 300, 400,*/ 500, 1000,
+        2000, /*3000, 4000,*/ 5000, 10000,
+        20000
+    };
+}
+
+std::vector<float> SpectrumAnalyzer::getXs(const std::vector<float>& freqs, float left, float width)
+{
+    std::vector<float> xs;
+
+    for (auto f : freqs)
+    {
+        auto normX = juce::mapFromLog10(f, 20.f, 20000.f);
+        xs.push_back(left + width * normX);
+    }
+
+    return xs;
+}
+
+void SpectrumAnalyzer::drawBackGroundGrid(juce::Graphics& g)
+{
+    using namespace juce;
+
+    auto freqs = getFrequencies();
+
+    auto renderArea = getAnalysisArea();
+    auto left = renderArea.getX();
+    auto right = renderArea.getRight();
+    auto top = renderArea.getY();
+    auto bottom = renderArea.getBottom();
+    auto width = renderArea.getWidth();
+
+    auto xs = getXs(freqs, left, width);
+    auto gain = getGains();
+
+    g.setColour(Colours::dimgrey);
+    for (auto x : xs)
+    {
+        g.drawVerticalLine(x, top, bottom);
+    }
+
+    for (auto gDb : gain)
+    {
+        auto y = jmap(gDb, -24.f, 24.f, float(bottom), float(top));
+
+        g.setColour(gDb == 0.f ? Colour(0u, 172u, 1u) : Colours::darkgrey);
+        g.drawHorizontalLine(y, left, right);
+    }
+}
+
+void SpectrumAnalyzer::drawTextLabels(juce::Graphics& g)
+{
+    auto freqs = getFrequencies();
+
+    auto renderArea = getAnalysisArea();
+    auto left = renderArea.getX();
+    auto right = renderArea.getRight();
+    auto top = renderArea.getY();
+    auto bottom = renderArea.getBottom();
+    auto width = renderArea.getWidth();
+
+    auto xs = getXs(freqs, left, width);
+    auto gain = getGains();
+
+    g.setColour(juce::Colours::lightgrey);
+    const int fontHeight = 10;
+    g.setFont(fontHeight);
+
+    for (int i = 0; i < freqs.size(); ++i)
+    {
+        auto f = freqs[i];
+        auto x = xs[i];
+
+        bool addK = false;
+        juce::String str;
+        if (f > 999.f)
+        {
+            addK = true;
+            f /= 1000;
+        }
+
+        str << f;
+        if (addK)
+        {
+            str << "k";
+        }
+        str << "Hz";
+
+        auto textWidth = g.getCurrentFont().getStringWidth(str);
+
+        juce::Rectangle<int> r;
+        r.setSize(textWidth, fontHeight);
+        r.setCentre(x, 0);
+        r.setY(1);
+
+        g.drawFittedText(str, r.toNearestInt(), juce::Justification::centred, 1);
+    }
+
+    for (auto gDb : gain)
+    {
+        auto y = juce::jmap(gDb, -24.f, 24.f, float(bottom), float(top));
+
+        juce::String str;
+        if (gDb > 0)
+        {
+            str << "+";
+        }
+        str << gDb;
+
+        auto textWidth = g.getCurrentFont().getStringWidth(str);
+
+        juce::Rectangle<int> r;
+        r.setSize(textWidth, fontHeight);
+        r.setX(getWidth() - textWidth);
+        r.setCentre(r.getCentreX(), y);
+
+        g.setColour(gDb == 0.f ? juce::Colour(0u, 172u, 1u) : juce::Colours::lightgrey);
+
+        g.drawFittedText(str, r.toNearestInt(), juce::Justification::centred, 1);
+
+        str.clear();
+        str << (gDb - 24.f);
+
+        r.setX(1);
+        textWidth = g.getCurrentFont().getStringWidth(str);
+        r.setSize(textWidth, fontHeight);
+        g.drawFittedText(str, r.toNearestInt(), juce::Justification::centred, 1);
+    }
+
+}
+
 void SpectrumAnalyzer::paint(juce::Graphics& g)
 {
     using namespace juce;
 
     g.fillAll(Colours::black);
 
-    g.drawImage(background, getLocalBounds().toFloat());
+    drawBackGroundGrid(g);
+
     auto responseArea = getRenderArea();
 
     if (shouldShowFFTAnalysis)
@@ -56,6 +201,19 @@ void SpectrumAnalyzer::paint(juce::Graphics& g)
         g.strokePath(rightChannelFFTPath, PathStrokeType(1.f));
     }
 
+    Path border;
+
+    border.setUsingNonZeroWinding(false);
+
+    border.addRoundedRectangle(getRenderArea(), 4);
+    border.addRectangle(getLocalBounds());
+
+    g.setColour(Colours::black);
+
+    g.fillPath(border);
+
+    drawTextLabels(g);
+
     g.setColour(Colours::orange);
     g.drawRoundedRectangle(getRenderArea().toFloat(), 4.f, 1.f);
 
@@ -64,116 +222,6 @@ void SpectrumAnalyzer::paint(juce::Graphics& g)
 void SpectrumAnalyzer::resized()
 {
     using namespace juce;
-    background = Image(Image::PixelFormat::RGB, getWidth(), getHeight(), true);
-
-    Graphics g(background);
-
-    Array<float> freqs
-    {
-        20, /* 30, 40,*/ 50, 100,
-        200, /* 300, 400,*/ 500, 1000,
-        2000, /*3000, 4000,*/ 5000, 10000,
-        20000
-    };
-
-    auto renderArea = getAnalysisArea();
-    auto left = renderArea.getX();
-    auto right = renderArea.getRight();
-    auto top = renderArea.getY();
-    auto bottom = renderArea.getBottom();
-    auto width = renderArea.getWidth();
-
-    Array<float> xs;
-
-    for (auto f : freqs)
-    {
-        auto normX = mapFromLog10(f, 20.f, 20000.f);
-        xs.add(left + width * normX);
-        //g.drawVerticalLine(getWidth() * normX, 0.f, getHeight());
-    }
-
-    g.setColour(Colours::dimgrey);
-    for (auto x : xs)
-    {
-        g.drawVerticalLine(x, top, bottom);
-    }
-
-    Array<float> gain
-    {
-        -24, -12, 0, 12, 24
-    };
-    for (auto gDb : gain)
-    {
-        auto y = jmap(gDb, -24.f, 24.f, float(bottom), float(top));
-
-        g.setColour(gDb == 0.f ? Colour(0u, 172u, 1u) : Colours::darkgrey);
-        g.drawHorizontalLine(y, left, right);
-    }
-
-    g.setColour(Colours::lightgrey);
-    const int fontHeight = 10;
-    g.setFont(fontHeight);
-
-    for (int i = 0; i < freqs.size(); ++i)
-    {
-        auto f = freqs[i];
-        auto x = xs[i];
-
-        bool addK = false;
-        String str;
-        if (f > 999.f)
-        {
-            addK = true;
-            f /= 1000;
-        }
-
-        str << f;
-        if (addK)
-        {
-            str << "k";
-        }
-        str << "Hz";
-
-        auto textWidth = g.getCurrentFont().getStringWidth(str);
-
-        Rectangle<int> r;
-        r.setSize(textWidth, fontHeight);
-        r.setCentre(x, 0);
-        r.setY(1);
-
-        g.drawFittedText(str, r.toNearestInt(), Justification::centred, 1);
-    }
-
-    for (auto gDb : gain)
-    {
-        auto y = jmap(gDb, -24.f, 24.f, float(bottom), float(top));
-
-        String str;
-        if (gDb > 0)
-        {
-            str << "+";
-        }
-        str << gDb;
-
-        auto textWidth = g.getCurrentFont().getStringWidth(str);
-
-        Rectangle<int> r;
-        r.setSize(textWidth, fontHeight);
-        r.setX(getWidth() - textWidth);
-        r.setCentre(r.getCentreX(), y);
-
-        g.setColour(gDb == 0.f ? Colour(0u, 172u, 1u) : Colours::lightgrey);
-
-        g.drawFittedText(str, r.toNearestInt(), Justification::centred, 1);
-
-        str.clear();
-        str << (gDb - 24.f);
-
-        r.setX(1);
-        textWidth = g.getCurrentFont().getStringWidth(str);
-        r.setSize(textWidth, fontHeight);
-        g.drawFittedText(str, r.toNearestInt(), Justification::centred, 1);
-    }
 
     auto fftBounds = getAnalysisArea().toFloat();
     auto negInf = jmap(getLocalBounds().toFloat().getBottom(),
