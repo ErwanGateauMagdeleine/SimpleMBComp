@@ -139,7 +139,7 @@ void SpectrumAnalyzer::drawTextLabels(juce::Graphics& g, juce::Rectangle<int> bo
         juce::Rectangle<int> r;
         r.setSize(textWidth, fontHeight);
         r.setCentre(x, 0);
-        r.setY(1);
+        r.setY(bounds.getY());
 
         g.drawFittedText(str, r.toNearestInt(), juce::Justification::centred, 1);
     }
@@ -159,7 +159,7 @@ void SpectrumAnalyzer::drawTextLabels(juce::Graphics& g, juce::Rectangle<int> bo
 
         juce::Rectangle<int> r;
         r.setSize(textWidth, fontHeight);
-        r.setX(getWidth() - textWidth);
+        r.setX(bounds.getRight() - textWidth);
         r.setCentre(r.getCentreX(), y);
 
         g.setColour(gDb == 0.f ? juce::Colour(0u, 172u, 1u) : juce::Colours::lightgrey);
@@ -169,7 +169,7 @@ void SpectrumAnalyzer::drawTextLabels(juce::Graphics& g, juce::Rectangle<int> bo
         str.clear();
         str << (gDb - 24.f);
 
-        r.setX(1);
+        r.setX(bounds.getX() + 1 );
         textWidth = g.getCurrentFont().getStringWidth(str);
         r.setSize(textWidth, fontHeight);
         g.drawFittedText(str, r.toNearestInt(), juce::Justification::centred, 1);
@@ -215,9 +215,6 @@ void SpectrumAnalyzer::paint(juce::Graphics& g)
     }
 
     drawTextLabels(g, bounds);
-
-    g.setColour(Colours::orange);
-    g.drawRoundedRectangle(getRenderArea(bounds).toFloat(), 4.f, 1.f);
 
 }
 
